@@ -1,0 +1,21 @@
+{
+  "name": "bun-geo-api",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "start:cluster": "bun run src/cluster.ts",
+    "build": "bun run src/build.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "geolite2-redist": "^3.1.1",
+    "maxmind": "^5.0.0"
+  }
+}

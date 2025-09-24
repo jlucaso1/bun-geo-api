@@ -1,0 +1,14 @@
+# Ignore build artifacts and dependencies
+dist
+node_modules
+db
+db_temp
+
+# Ignore Docker and Git specific files
+.git
+.gitignore
+Dockerfile
+.dockerignore
+
+# Ignore local development files
+.env
