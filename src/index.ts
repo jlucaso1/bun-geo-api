@@ -3,65 +3,61 @@ import maxmind, { type CityResponse, type Reader } from "maxmind";
 
 // @ts-expect-error Bun's import assertion for files
 import geoDbPath from "../db/GeoLite2-City.mmdb" with { type: "file" };
+import { toIpApiFormat } from "./ip-api-compat";
+import { isLocalIp, jsonResponse, errorResponse } from "./helpers";
 
 console.log("Initializing MaxMind reader with embedded database...");
 
 const reader: Reader<CityResponse> = await maxmind.open(geoDbPath);
 
-console.log("✅ GeoLite2 database loaded successfully from embedded asset.");
+console.log("GeoLite2 database loaded successfully.");
 
 const server = serve({
   port: 3000,
   reusePort: true,
   fetch(request, server) {
-    try {
-      const url = new URL(request.url);
-      let ipToLookup = url.searchParams.get("ip");
+    const url = new URL(request.url);
 
-      if (!ipToLookup) {
-        ipToLookup = server.requestIP(request)?.address ?? null;
-      }
-
-      if (!ipToLookup) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "IP address not provided and could not be determined from the request.",
-          }),
-          { status: 400, headers: { "Content-Type": "application/json" } },
-        );
-      }
-
-      const lookup = reader.get(ipToLookup);
-
-      if (lookup) {
-        return new Response(JSON.stringify(lookup, null, 2), {
-          headers: { "Content-Type": "application/json" },
-        });
-      } else {
-        return new Response(
-          JSON.stringify({ error: `IP address not found: ${ipToLookup}` }),
-          { status: 404, headers: { "Content-Type": "application/json" } },
-        );
-      }
-    } catch (error) {
-      console.error("An unexpected error occurred:", error);
-      return new Response(
-        JSON.stringify({ error: "An internal server error occurred." }),
-        { status: 500, headers: { "Content-Type": "application/json" } },
-      );
+    // ip-api compatible route: /json/{ip}
+    const jsonMatch = url.pathname.match(/^\/json\/(.+)$/);
+    if (jsonMatch?.[1]) {
+      const ip = jsonMatch[1];
+      const lookup = reader.get(ip);
+      return jsonResponse(toIpApiFormat(lookup, ip));
     }
+
+    // MaxMind native route: /?ip={ip} or auto-detect from request
+    const ip = url.searchParams.get("ip") ?? server.requestIP(request)?.address;
+
+    if (!ip) {
+      return errorResponse("IP address not provided.", 400);
+    }
+
+    if (isLocalIp(ip)) {
+      return errorResponse("Cannot geolocate local IP address.", 404);
+    }
+
+    const lookup = reader.get(ip);
+
+    if (!lookup) {
+      return errorResponse(`IP address not found: ${ip}`, 404);
+    }
+
+    return jsonResponse(lookup);
+  },
+  error(error) {
+    console.error("Unexpected error:", error);
+    return errorResponse("Internal server error.", 500);
   },
 });
 
-console.log(`🚀 Server listening on http://localhost:${server.port}`);
+console.log(`Server listening on http://localhost:${server.port}`);
 
 function shutdown() {
-  console.log("\n🛑 Server shutting down gracefully...");
+  console.log("Server shutting down...");
   server.stop();
   process.exit(0);
 }
 
 process.on("SIGINT", shutdown);
-
 process.on("SIGTERM", shutdown);
