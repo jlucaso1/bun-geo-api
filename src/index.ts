@@ -18,6 +18,10 @@ const server = serve({
   fetch(request, server) {
     const url = new URL(request.url);
 
+    if (url.pathname === "/health") {
+      return new Response("ok");
+    }
+
     // ip-api compatible route: /json/{ip}
     const jsonMatch = url.pathname.match(/^\/json\/(.+)$/);
     if (jsonMatch?.[1]) {
